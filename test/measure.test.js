@@ -60,6 +60,32 @@ test('THE ROWS CUT WORKS IN THE CHAIN, because that is the cut the standalone me
     assert.equal(result.aggregate.q1.n, 1)
 })
 
+test('THE WINDOW\'S SIZE IS THE CUT\'S OWN SIZE, in the rows path too', async () => {
+    // THE MEASUREMENT THAT WAS WRONG, AND IT WAS WRONG BY A LOT. The window counted the messages a second time, with
+    // a reader of its own, while the rows path hands the chain an EMPTY `messages` array -- so the rows path reported
+    // **0** for a window of **17** characters, and a caller that compared the window's size with the budget's was
+    // comparing nothing with something. Measured on this session, before the fix: `windowChars` **0**,
+    // `parts[0].chars` **17**.
+    //
+    // The fix is to take the number from the cut, which already knows it in BOTH paths, because each cut counts the
+    // thing it was given. This test is the pin: the two numbers are the same, and the window is not zero.
+    const rows = [
+        { kind: 'receipt', harness: 'dsh', id: 's1', source: '/logs/s1.jsonl', sourceSha256: 'ab'.repeat(32), highWater: 2 },
+        { kind: 'message', seq: 1, exchange: 0, ordinal: 1, role: 'user', type: 'text', text: 'the ask', reasoning: null, shadowed: false, interrupted: false },
+        { kind: 'message', seq: 2, exchange: 0, ordinal: 2, role: 'assistant', type: 'text', text: 'the answer', reasoning: null, shadowed: false, interrupted: false },
+    ]
+    const result = await judgeSegments({
+        events: rows, messages: [], segmentChars: 10000,
+        questions: {},
+        cut: (all, covered, options) => segmentsOfRows(all, options),
+        compose: async () => ({ state: 'x' }),
+        decide: async () => ({ answers: {} }),
+    })
+    assert.equal(result.parts.length, 1, 'one segment')
+    assert.equal(result.parts[0].chars, 17, "the segment's own size is 17 characters")
+    assert.equal(result.windowChars, 17, 'and the WINDOW says the same, rather than 0')
+})
+
 test('segments are judged, and a failed one is a ROW not a gap', async () => {
     const messages = [text('a'.repeat(50)), text('b'.repeat(50)), text('c'.repeat(50))]
     const asked = []

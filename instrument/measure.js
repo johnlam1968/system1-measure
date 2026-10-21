@@ -22,7 +22,6 @@ import { createHash } from 'node:crypto'
 import { isRecord } from '../core/is-record.js'
 import { withinStateBudget } from '../core/model/limits.js'
 import { aggregateReadings, firstAndLast, segmentsOf } from './segment.js'
-import { textOfEvent } from './session-format.js'
 
 /** Why a segment produced no reading. A row carries one instead of an absent entry, so `n` never silently shrinks. */
 const failedRow = (part, { reason, chars = 0, stateHash = '' }) => ({
@@ -90,7 +89,15 @@ export async function judgeSegments({
 }) {
     const parts = cut(events, messages, { maxChars: segmentChars })
     const rows = []
-    const windowChars = messages.reduce((total, message) => total + textOfEvent(message).length, 0)
+    // THE WINDOW'S SIZE IS THE CUT'S OWN ACCOUNTING, and this line used to count the messages a second time, by a
+    // different reader. The two disagreed: the dsh cut counts a message with `textOfEvent` and the rows cut counts a
+    // row's own text, and the window counted `textOfEvent` over a `messages` array that the ROWS path leaves empty --
+    // so the rows path reported **0** for a window of **505** characters, and a caller that compared the window's size
+    // with the budget's was comparing nothing with something.
+    //
+    // The cut already knows the answer, and it knows it correctly in BOTH paths, because each cut counts the thing it
+    // was given. So the window is the SUM of the parts' own sizes: one number, from one accounting, for either path.
+    const windowChars = parts.reduce((total, part) => total + (part.chars ?? 0), 0)
     for (const part of parts) {
         // EACH SEGMENT IS COMPOSED WITH THE STATE BUDGET, NOT THE ROW'S WHOLE-SESSION CAP. The segmentation already
         // decided the size; this is the ceiling it was measured against.

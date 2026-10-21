@@ -20,7 +20,6 @@
 // NO `ctx`, NO CONFIG, NO I/O: the caller passes the events it already has. That is what lets a live window and a
 // stored log go through the same producer.
 
-import { exchangesOf } from './exchange.js'
 import { EVENT, contentOf, isHumanMessage, isMessageEvent, textOfEvent } from './session-format.js'
 import { surfaceEvents } from './surface.js'
 // THE RULES THE PACKAGE OWNS, USED AS THE PACKAGE'S. The ask-group, the reasoning and the NUL rule are said once,
