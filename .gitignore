@@ -1,0 +1,7 @@
+node_modules/
+data/
+.superpowers/
+reports/
+
+# npm pack output: a build artifact, never a source file
+*.tgz
