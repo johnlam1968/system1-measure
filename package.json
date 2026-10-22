@@ -1,6 +1,6 @@
 {
   "name": "system1-measure",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Measure an agent session \u2014 the questions asked, the answers given, and the evidence behind them.",
   "main": "index.js",

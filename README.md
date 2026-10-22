@@ -12,7 +12,7 @@ parameter, so the same measurement runs under any harness, or under none. MIT li
 ## Install
 
 ```bash
-npm install https://github.com/johnlam1968/system1-measure/releases/download/v0.1.0/system1-measure-0.1.0.tgz
+npm install https://github.com/johnlam1968/system1-measure/releases/download/v0.1.1/system1-measure-0.1.1.tgz
 ```
 
 That is the whole installation. The package declares **no runtime dependency at all**, and runs on Node 22.19 or newer.
