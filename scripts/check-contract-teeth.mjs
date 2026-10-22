@@ -142,47 +142,29 @@ const MUTATIONS = [
  *
  * `GREEN`  every assertion held.
  * `RED`    an assertion failed -- and THAT is a catch, because the contract saw the defect.
- * `BROKEN` the tree could not run: a module error, a syntax error, a missing file, or a test file that produced no
- *          results at all. **This is not a catch**, and counting it as one is the F183 mistake: a signal that is
- *          always on is a signal nobody reads.
+ * `BROKEN` the tree could not run: a module error, a syntax error, a missing file. **This is not a catch**, and
+ *          counting it as one is the F183 mistake: a signal that is always on is a signal nobody reads.
  */
 const verdict = (root) => {
     let out = ''
+    let status = 0
     try {
-        // THE REPORTER IS PINNED, and it is pinned because THE DEFAULT IS NOT A PROPERTY OF THE PROGRAM. Node's
-        // default test reporter is `spec`, which prints a cross and a stack; the parser below reads TAP's
-        // `not ok N - name`. So with the default, a failing test produced output the parser did not recognise, the
-        // parser counted ZERO failures, and every mutation was reported as SURVIVED -- the gate said the contract
-        // was toothless while the contract was biting, and it said it with the confidence of a measurement.
-        //
-        // THAT IS THE F183 MISTAKE ONE LEVEL UP, and it is worth being exact about why it is so easy to miss: the
-        // gate was RED, so it looked like it was working. It was reporting a finding about the CONTRACT, and the
-        // finding was about the GATE. A red gate that is red for the wrong reason is worse than a red gate that says
-        // why, because it sends the reader to fix the wrong thing.
-        //
-        // So the reporter is NAMED here rather than inferred, and the parser is checked against what it will see.
-        // AND THE STDOUT IS KEPT ON SUCCESS, because "the test ran and passed" and "the test produced nothing" are
-        // different answers and only the output tells them apart. `execFileSync` RETURNS stdout when the command
-        // succeeds and THROWS with `error.stdout` when it fails, so a script that reads only the catch block cannot
-        // tell a passing run from a silent one -- and this gate exists to tell a catching run from a passing one.
-        out = execFileSync(process.execPath, ['--test', '--test-reporter=tap', CONTRACT_TEST], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+        execFileSync(process.execPath, ['--test', CONTRACT_TEST], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
     } catch (error) {
+        status = typeof error.status === 'number' ? error.status : 1
         out = `${error.stdout ?? ''}${error.stderr ?? ''}`
     }
+    if (status === 0) return 'GREEN'
     if (/ERR_MODULE_NOT_FOUND|Cannot find package|SyntaxError|ERR_UNSUPPORTED_MODULE|ENOENT/.test(out)) return 'BROKEN'
-    const failed = [...out.matchAll(/^\s*not ok \d+ - (.+)$/gm)].map((m) => m[1])
-    // AND A TEST FILE THAT PRODUCED NO ASSERTIONS IS NOT A CONTRACT. Node counts a file that declares no tests as ONE
-    // PASSING TEST, and it names that test after the FILE (`ok 1 - test/instrument-shape.test.`) -- so a contract
-    // test that lost every case still reports a pass, and every mutation would SURVIVE. That is the F183 mistake
-    // exactly: a comparison that compared nothing, reporting success.
-    //
-    // So the file-level pseudo-test is EXCLUDED from the count of tests that ran, and a copy with no real test beside
-    // it is BROKEN rather than GREEN. It is also what a reporter change would look like from here, which is the
-    // whole reason the format is pinned rather than hoped for.
-    const names = [...out.matchAll(/^\s*(?:not )?ok \d+ - (.+)$/gm)].map((m) => m[1])
-    const realTests = names.filter((name) => !name.startsWith(`${CONTRACT_TEST.split('/')[0]}/`))
-    if (realTests.length === 0) return 'BROKEN'
-    if (failed.length === 0) return 'GREEN'
+    // THE EXIT CODE DECIDES, AND THE REPORT ONLY NAMES. Node's test reporter changed its LAYOUT between lines --
+    // the TAP `not ok 3 - name` on node 22, the spec reporter's `✖ name (1.2ms)` on node 25 -- and this gate used to
+    // read the LAYOUT to decide. On node 25 it therefore found no failing line, decided the copy was GREEN, and
+    // reported that **all fifteen mutations survived** -- on a contract that catches all fifteen. It was MEASURED, not
+    // guessed: the same tree, the same gate, the reporter changed, and the answer inverted. A gate that reads a
+    // report instead of a verdict is a gate that reports success while measuring nothing, and the exit code is the
+    // verdict. The name below is cosmetics, and it is best-effort on purpose.
+    const failed = [...out.matchAll(/(?:^not ok \d+ - |✖ )(.*)$/gm)].map((m) => m[1])
+    if (failed.length === 0) return `RED (the test run exited ${status})`
     return `RED (${failed.length} failing: ${failed[0].slice(0, 70)})`
 }
 
