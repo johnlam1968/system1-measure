@@ -165,7 +165,11 @@ try {
     // `package.json` COMES TOO, and without it the copy's `.js` files are CommonJS and the whole test file fails to
     // load -- which reads as "every mutation was caught" while measuring nothing. The untouched verdict below is what
     // says the copy is a working tree, and a copy that cannot run is not a copy that can fail.
-    for (const dir of ['core', 'instrument', 'rules', 'test']) cpSync(join(ROOT, dir), join(room, dir), { recursive: true })
+    // AND `contract/` COMES TOO, because the contract FIXTURE lives there now: the copy has to be a working tree,
+    // and a working tree without the directory the contract test imports is a copy that is broken for a reason
+    // that has nothing to do with the mutation. It was missing, and the gate said so -- but the gate's own failure
+    // was easy to mistake for a passing run, because the report it prints is a REPORT and not an exit code.
+    for (const dir of ['core', 'instrument', 'rules', 'contract', 'test']) cpSync(join(ROOT, dir), join(room, dir), { recursive: true })
     cpSync(join(ROOT, 'package.json'), join(room, 'package.json'))
     // AND `node_modules` IS NOT NEEDED, which is the point: this package's contract test reaches the shape by a
     // RELATIVE path, so the copy is a working tree with nothing installed. A copy that needed a package would be a copy
