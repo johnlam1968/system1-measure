@@ -34,8 +34,8 @@
   ],
   "scripts": {
     "prepublishOnly": "npm run ci",
-    "test": "node --test test/*.test.js",
-    "coverage": "node --experimental-test-coverage --test --test-coverage-include='core/*.js' --test-coverage-include='core/model/*.js' --test-coverage-include='instrument/*.js' --test-coverage-include='rules/*.js' --test-coverage-lines=90 --test-coverage-branches=75 --test-coverage-functions=75 test/*.test.js",
+    "test": "node scripts/check-node-floor.mjs && node --test test/*.test.js",
+    "coverage": "node scripts/check-node-floor.mjs && node --experimental-test-coverage --test --test-coverage-include='core/*.js' --test-coverage-include='core/model/*.js' --test-coverage-include='instrument/*.js' --test-coverage-include='rules/*.js' --test-coverage-lines=90 --test-coverage-branches=75 --test-coverage-functions=75 test/*.test.js",
     "check:contract-teeth": "node scripts/check-contract-teeth.mjs",
     "check:channel-agreement": "node scripts/check-channel-agreement.mjs",
     "ci": "npm test && npm run coverage && npm run check:contract-teeth",

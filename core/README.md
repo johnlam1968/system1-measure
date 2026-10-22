@@ -192,6 +192,10 @@ rule start drifting:
 
 ## Gates and shared
 
+* `node-floor.js` -- the runtime this package supports, checked against the version that is running: the range in
+  `engines.node` is a promise, and npm treats it as a warning, so this is the gate that keeps it
+* `scripts/check-node-floor.mjs` -- the CLI half of that gate, run FIRST, so a runtime that is too old is NAMED
+  instead of dying on a module it cannot load
 * `scripts/check-contract-teeth.mjs` -- mutates the shape in a copy of the tree and fails if any mutation leaves the
   contract green. A contract is only as good as its witness
 * `scripts/check-channel-agreement.mjs` -- the two channels of the same session must agree, where a second channel
