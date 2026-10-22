@@ -68,20 +68,3 @@ jobs:
           fi
           echo "the tarball carries exactly the package and its fixture"
 
-      - name: The published manifest declares no dependency, because a clean room is the claim
-        run: |
-          # `AGENTS.md` says this package must never grow a runtime dependency, and says the tarball gate checks the
-          # PUBLISHED manifest rather than the working tree. The test in `test/instrument-boundary.test.js` asserts
-          # the working manifest; this asserts the one that leaves, because a publish is the moment the manifest
-          # becomes a promise.
-          node --input-type=module -e "
-            import { readFileSync } from 'node:fs'
-            const pkg = JSON.parse(readFileSync('./package.json', 'utf8'))
-            const deps = Object.keys(pkg.dependencies ?? {})
-            if (deps.length > 0) {
-              console.error('::error::the published manifest declares a runtime dependency: ' + deps.join(', '))
-              console.error('::error::a measurement that needs something installed cannot be run in a clean room')
-              process.exit(1)
-            }
-            console.log('the published manifest declares no dependency')
-          "

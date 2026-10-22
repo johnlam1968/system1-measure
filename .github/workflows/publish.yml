@@ -181,23 +181,6 @@ jobs:
             if (bad > 0) process.exit(1)
           "
 
-      - name: The published manifest declares no dependency, because a clean room is the claim
-        run: |
-          # `AGENTS.md` says this package must never grow a runtime dependency, and says the tarball gate checks the
-          # PUBLISHED manifest rather than the working tree. The test in `test/instrument-boundary.test.js` asserts
-          # the working manifest; this asserts the one that leaves, because a publish is the moment the manifest
-          # becomes a promise.
-          node --input-type=module -e "
-            import { readFileSync } from 'node:fs'
-            const pkg = JSON.parse(readFileSync('./package.json', 'utf8'))
-            const deps = Object.keys(pkg.dependencies ?? {})
-            if (deps.length > 0) {
-              console.error('::error::the published manifest declares a runtime dependency: ' + deps.join(', '))
-              console.error('::error::a measurement that needs something installed cannot be run in a clean room')
-              process.exit(1)
-            }
-            console.log('the published manifest declares no dependency')
-          "
 
       - name: Switch to a node that npm 12 supports
         uses: actions/setup-node@v4
@@ -260,9 +243,51 @@ jobs:
             # a first publish". It was the ARGUMENT. npm 12's own documentation says the spec-less form "packs the
             # current working directory" and that "staged publishing will allow you to create a new package if it does
             # not exist". So the fallback is the FIRST publish, not a last resort, and the spec is the bug.
-            if ! npm publish --provenance --access public --tag "$tag"; then
+            #
+            # AND BOTH OUTPUTS ARE KEPT, because npm prints the reason on STDERR and the reason is the whole point.
+            set +e
+            npm publish --provenance --access public --tag "$tag" > /tmp/publish.log 2>&1
+            pub=$?
+            set -e
+            cat /tmp/publish.log
+            if [ "$pub" -ne 0 ]; then
               echo "::notice::npm publish failed; trying the staged path, which defers the 2FA proof-of-presence"
-              npm stage publish --tag "$tag" --provenance --access public
+              set +e
+              npm stage publish --tag "$tag" --provenance --access public > /tmp/stage.log 2>&1
+              stg=$?
+              set -e
+              cat /tmp/stage.log
+              if [ "$stg" -ne 0 ]; then
+                # AND THE FAILURE IS CLASSIFIED BY ITS CODE, because the two failures mean OPPOSITE things and both
+                # arrive as a red job.
+                #
+                # MEASURED ON THIS PACKAGE'S FIRST PUBLISH ATTEMPT, on 2026-10-22:
+                #   npm publish        -> npm error code E404
+                #                         404 Not Found - PUT https://registry.npmjs.org/system1-measure - Not found
+                #   npm stage publish  -> npm error code E401
+                #                         Unable to authenticate, your authentication token seems to be invalid.
+                #
+                # E404 IS THE PACKAGE NOT EXISTING YET. npm has no trusted publisher to authorise because the
+                # configuration for one LIVES ON THE PACKAGE'S PAGE, and a package that does not exist has no page.
+                # E401 IS THE SAME THING FROM THE STAGED PATH: the provenance was signed and published to the
+                # transparency log, so the IDENTITY was fine -- npm simply would not map that identity to a
+                # publisher for a package it had never heard of.
+                #
+                # SO BOTH MEAN ONE THING, and it is a HUMAN STEP rather than a bug: the package has to exist on npm,
+                # and it has to name THIS workflow as a trusted publisher. The first publish is made from a machine
+                # with a person at it, because npm's 2FA proof-of-presence is a browser and a phone.
+                if grep -qE 'npm error code (E404|E401)' /tmp/publish.log /tmp/stage.log; then
+                  echo "::error::npm does not know this package yet, so it has no trusted publisher to authorise this job."
+                  echo "::error::E404 on PUT means the package does not exist on npm; E401 on the staged path means this job's identity is not a trusted publisher for it."
+                  echo "::error::BOTH are fixed the same way, and it is a human step:"
+                  echo "::error::  1. On a machine with a browser and 2FA, publish the package once by hand: npm publish --access public --provenance=false"
+                  echo "::error::     (or create the package at https://www.npmjs.com/org/johnlam1968/package/system1-measure)"
+                  echo "::error::  2. On that package's page, set Trusted Publishing -> GitHub Actions -> repository 'johnlam1968/system1-measure', workflow filename 'publish.yml'."
+                  echo "::error::  3. Re-run this workflow. Every later publish is automatic."
+                  exit 1
+                fi
+                exit 1
+              fi
             fi
             echo "--- what npm holds for this version ---"
             # AND WITHOUT A VERSION SPECIFIER, which is MEASURED: npm 12 answers

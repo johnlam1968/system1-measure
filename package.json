@@ -13,7 +13,7 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "system1-ask": "./bin/ask.mjs"
+    "system1-ask": "bin/ask.mjs"
   },
   "files": [
     "index.js",
