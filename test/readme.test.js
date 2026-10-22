@@ -67,8 +67,11 @@ test('the README says where to ask for help', () => {
     // MEASURED, and the single largest move in the whole exercise: the help path scored 0.08 on the manual and 0.11
     // on the first landing page, and 0.99 once a paragraph and an issues link were there. It is the one line that
     // moved a question by a large, repeatable margin, so it is the one line this gate holds.
-    assert.match(readme, /issues/, 'the README must say where to ask for help: a reader who cannot ask is stuck')
-    assert.match(readme, /contribut/i, 'the README must say how to contribute')
+    // THE LINK, NOT THE WORD -- see the same gate in the observer: matching /issues/ passes a page whose issues link
+    // is gone, because the word appears elsewhere. A gate that checks a word is not a gate on the thing.
+    assert.match(readme, /https:\/\/github\.com\/[^)\s]+\/issues/, 'the README must link to the issue tracker: a reader who cannot ask is stuck')
+    assert.match(readme, /pull requests? are welcome|\]\([^)]*CONTRIBUTING[^)]*\)/i,
+        'the README must say how to contribute -- a heading alone is not a way to contribute')
 })
 
 test('the short description is one line, and it is the package description', () => {
@@ -92,7 +95,8 @@ test('the front page does not carry the project\'s internal vocabulary', () => {
     // The API's own names are exempt, because a reader has to TYPE them to call anything. The words below are the
     // project's internals, and each of them is a word a visitor has no reason to know.
     const internals = ['the probe', 'the teeth', 'check-contract-teeth', 'coverage floor', 'F19', 'rules/index',
-        'instrumentShape', 'judgeSegments', 'segmentsOfRows', 'question-dsl', 'label-hash', 'nudge-label']
+        'instrumentShape', 'judgeSegments', 'segmentsOfRows', 'question-dsl', 'label-hash', 'nudge-label',
+        'npm run ', 'docs/findings.md', 'the register']
     const found = internals.filter((word) => readme.includes(word))
     assert.deepEqual(found, [], 'the front page carries internal vocabulary: ' + found.join(', ')
         + '. Say it in the reader\'s words, and put the detail in docs/extending.md.')
