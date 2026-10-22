@@ -52,6 +52,7 @@ test('the map names every lib file, and every name in it exists', () => {
         ...libFiles(join(ROOT, 'core')),
         ...libFiles(join(ROOT, 'instrument')).map((f) => 'instrument/' + f),
         ...libFiles(join(ROOT, 'rules')).map((f) => 'rules/' + f),
+        ...libFiles(join(ROOT, 'contract')).map((f) => 'contract/' + f),
     ].sort()
     const declared = declaredIn(doc)
     const unique = [...new Set(declared)].sort()
@@ -66,6 +67,7 @@ test('the map names every lib file, and every name in it exists', () => {
     // are a level down, and a scan that stopped at the first level would report fewer files and still pass a floor.
     assert.ok(files.some((f) => f.startsWith('model/')), 'the scan reaches core/model/')
     assert.ok(files.some((f) => f.startsWith('rules/')), 'and the rules/')
+    assert.ok(files.some((f) => f.startsWith('contract/')), 'and the contract/, which a second host vendors')
 })
 
 test('the map says which file owns which tool name, and the tool names are real', () => {

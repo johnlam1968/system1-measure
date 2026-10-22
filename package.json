@@ -7,6 +7,7 @@
   "exports": {
     ".": "./index.js",
     "./rules": "./rules/index.js",
+    "./contract": "./contract/index.js",
     "./core/*": "./core/*",
     "./instrument/*": "./instrument/*",
     "./package.json": "./package.json"
@@ -20,6 +21,8 @@
     "core/README.md",
     "instrument/**/*.js",
     "rules/index.js",
+    "contract/**",
+    "rules/fixture/**",
     "rules/fixture/**",
     "criteria/**",
     "!criteria/_parked/**",

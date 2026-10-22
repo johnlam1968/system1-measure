@@ -28,15 +28,13 @@
 // half of this file: the fixture says what the rules are, and the script says the fixture can see them break.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { instrumentShape } from '../core/instrument-shape.js'
-import { cases } from './fixtures/instrument-shape/contract.mjs'
+import { FIXTURE_DIGEST, cases, digestOf } from '../contract/index.js'
 
-/** The vendored fixture, and the digest the contract computes for it. */
-const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/instrument-shape')
+/** The contract's own fixture, and the digest the contract computes for it. */
+const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), '..', 'contract', 'fixture')
 
 /**
  * THE PINNED DIGEST, and it is over the file NAME as well as its bytes: a fixture that was renamed is a different
@@ -45,16 +43,6 @@ const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/instrume
 const PINNED_DIGEST = 'a1a45d16ca9f645677fd07315d3af95f9499c20b32c1d7b2765087225c30299a'
 
 const FIXTURE_FILES = ['fixture/contract.mjs']
-
-/** The digest of a fixture held here, computed the way the contract computes it. */
-const digestOf = (root) => {
-    const hash = createHash('sha256')
-    for (const file of FIXTURE_FILES) {
-        hash.update(file)
-        hash.update(readFileSync(join(root, file.split('/').pop())))
-    }
-    return hash.digest('hex')
-}
 
 /** The two host-owned values, as placeholders: the fixture holds one for each and compares nothing else. */
 const HOST_EVENT = '<host-event>'
@@ -84,9 +72,14 @@ const optionsOf = (one) => (one.transport === undefined
     ? { point: one.point }
     : { point: one.point, transport: one.transport })
 
-test('THE VENDORED FIXTURE IS THE CONTRACT, and the digest says so', () => {
+test('THE SHIPPED FIXTURE IS THE CONTRACT, and the digest says so', () => {
     assert.equal(digestOf(FIXTURE), PINNED_DIGEST,
-        'the vendored fixture is not the one the contract pins; update it and the digest together')
+        'the shipped fixture is not the one the contract pins; update it and the digest together')
+    // AND THE NUMBER THE PACKAGE PUBLISHES IS THE SAME ONE, because a second host reads THAT and not this file.
+    // Two pins of one number, in two places, that must agree: the test's literal is the pin, and the export is what
+    // a consumer gets.
+    assert.equal(FIXTURE_DIGEST, PINNED_DIGEST,
+        'the digest the package exports is not the one this test pins; a second host would be told a wrong number')
 })
 
 test('THE PURE SHAPE PRODUCES THE CONTRACT\'S SHAPE, case by case', () => {

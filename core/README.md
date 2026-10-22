@@ -208,6 +208,17 @@ and this map stay, because the filesystem journal is not session-shaped.
   its producer must write. A fixture that is only checked against itself is decoration, so the digest is pinned here
   and in every repository that vendors a copy
 
+## The contract, and the fixture a second host vendors
+
+* `contract/index.js` — **THE INPUT SHAPE'S CONTRACT**: the cases, the pinned digest, and the digest of a fixture
+  held elsewhere. It is PUBLISHED, and that is the point: the shape is the thing two hosts build, and a fixture a
+  second host cannot read pins nothing outside the repository that wrote it. So it ships, and it ships with its
+  digest -- a fixture that travels without its digest protects nothing, because a renamed fixture is a different
+  contract
+* `contract/fixture/contract.mjs` — the fixture itself: one case per shape, each with the config, the point, the
+  transport and the EXACT expected object. It is a `.mjs` and not JSON because the shape distinguishes a key that is
+  ABSENT from a key that is PRESENT AND HOLDS NOTHING, and JSON has no `undefined`
+
 ## The standalone
 
 - `bin/ask.mjs` — **THE STANDALONE**: measure a session with nothing installed. It is the entry point the boundary
