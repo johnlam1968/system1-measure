@@ -1,0 +1,359 @@
+# WHAT A RELEASE IS, RUN BY A MACHINE.
+#
+# The shape is this account's release convention: a `v*` tag (or a manual run) publishes the package, guarded by an
+# idempotency check so a re-run after a partial failure is safe, with provenance and a GitHub Release at the end.
+#
+# FOUR DELIBERATE DIFFERENCES from the observer's `publish.yml`, each for a reason:
+#   1. Node 25.x, for the same reason the observer pins it: `npm run ci` includes the coverage floor, and this
+#      repository measured that floor on 25.x.
+#   2. The suite runs BEFORE publishing, so a red suite stops the release.
+#   3. The dist-tag FOLLOWS THE VERSION rather than being hard-coded: a prerelease goes to `beta` so `npm i
+#      system1-measure` cannot pick it up, and a stable release goes to `latest`. Hard-coding `beta` would publish
+#      0.1.0 and leave `latest` pointing at nothing.
+#   4. ONE package, and it is not a plugin: it has no harness peer dependency, no `install.sh`, and no manifest of
+#      a service. It is the RULES and the MEASUREMENT, and the rules are the thing that must not drift.
+#
+# WHY TRUSTED PUBLISHING AND NOT A TOKEN. npm is deprecating the tokens that bypass 2FA: account changes in August
+# 2026 and DIRECT PUBLISHING in January 2027. A long-lived token that can publish is a credential that outlives its
+# own reason to exist, and a publish path that is going to be closed in three months is a publish path that will be
+# broken in three months. Trusted publishing -- the OIDC exchange this workflow uses -- has no stored secret at all:
+# the job proves WHO it is to npm and npm decides whether that is allowed. And it is the path the other two
+# repositories in this account already use, which is why `dsh-session-index@0.1.0` is on npm without a token
+# anywhere on this host.
+#
+# THE FIRST PUBLISH IS A HUMAN STEP, and this workflow says so where it will be felt. A package that npm has never
+# heard of has no trusted-publisher configuration to find -- the configuration lives on the package's page, and a
+# package that does not exist has no page. So the FIRST release of this package is made from the npm web UI, on a
+# machine with a human at it, and only then does this workflow have a publisher to be. The fallback below carries
+# the release anyway, because npm 12 can create a package that does not exist yet -- but the approval of a staged
+# release may still need a human, and the step says which command settles it.
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish system1-measure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '25.x'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+
+      - name: Print the version being published
+        run: |
+          name=$(node -p "require('./package.json').name")
+          ver=$(node -p "require('./package.json').version")
+          echo "  ${name}@${ver}"
+
+      - name: The manifest has a valid semver version
+        run: |
+          name=$(node -p "require('./package.json').name")
+          ver=$(node -p "require('./package.json').version")
+          if [[ ! "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
+            echo "::error::${name} has invalid version: ${ver}"
+            exit 1
+          fi
+
+      - name: npm must be new enough for the OIDC exchange
+        run: |
+          # Trusted publishing uses npm's OIDC exchange, which does not exist before 11.5. The runner's npm comes
+          # from the Node line above; this asserts it rather than discovering it at the publish step.
+          ver=$(npm --version)
+          major=${ver%%.*}; rest=${ver#*.}; minor=${rest%%.*}
+          if [ "$major" -lt 11 ] || { [ "$major" -eq 11 ] && [ "$minor" -lt 5 ]; }; then
+            echo "::error::npm $ver is too old for trusted publishing; needs >= 11.5"
+            exit 1
+          fi
+          echo "npm $ver supports the OIDC exchange"
+
+      - name: Install from the lockfile
+        run: npm ci
+
+      - name: The suite and every gate
+        run: npm run ci
+
+      - name: The fixture this package publishes must be the one the consumers PINNED
+        run: |
+          # THE FIXTURE IS THE BRIDGE, and the three repositories that vendor it pin its digest: the observer, the
+          # store and the pi extension. A publish that changed the fixture would leave those three pinning a digest
+          # the registry no longer serves, and the failure would land in a CONSUMER's test, not here -- so the check
+          # is made here, at the source, before the artifact leaves.
+          #
+          # The digest is the package's own `fixtureDigest()` -- one digest over BOTH files, in a fixed order -- and
+          # not a digest of either file alone, because a consumer vendors the pair and the pair is what must match.
+          #
+          # IT IS IMPORTED FROM THE RULES PATH, because the rules live at `rules/index.js` and are NOT re-exported
+          # from the package's main entry: ONE RULE, ONE PATH. A digest read from the main entry would be a second
+          # path to the same rule, which is the thing the package exists to prevent.
+          node --input-type=module -e "
+            import { fixtureDigest } from './rules/index.js'
+            const expected = '27bb1c0c893adb4f6b52648fdff32cb17b39022f8dbea53451ac5f84058cdb66'
+            const actual = fixtureDigest()
+            console.log('fixture digest:', actual)
+            if (actual !== expected) {
+              console.error('::error::the fixture digest is ' + actual + ' but the consumers pinned ' + expected)
+              console.error('::error::a consumer would go red on a fixture that this publish changed')
+              process.exit(1)
+            }
+            console.log('the fixture is the one the observer, the store and the pi extension pinned')
+          "
+
+      - name: The tarball must carry what the package IS, because a missing file is a 404 for the consumer
+        run: |
+          # `files` is a WHITELIST, so a mistake in it does not add a file -- it DROPS one, silently. The fixture is
+          # the reason the package exists: a consumer that installs it and finds no `rules/fixture/` cannot check
+          # that its own producer agrees with the rules, and the conformance test that is supposed to catch drift
+          # instead fails to find its input. So the tarball is opened and its contents are named, here.
+          npm pack --dry-run 2>&1 | tee /tmp/pack.txt
+          for want in index.js package.json README.md LICENSE rules/index.js contract/index.js bin/ask.mjs \
+                      rules/fixture/session.v4.jsonl rules/fixture/rows.jsonl contract/fixture/contract.mjs; do
+            if ! grep -q " $want$" /tmp/pack.txt; then
+              echo "::error::the tarball does not carry ${want}"
+              exit 1
+            fi
+          done
+          # AND NOTHING ELSE: a tarball that carries the test suite, the lockfile or a stray file is a tarball that
+          # publishes a repository instead of a package.
+          if grep -qE "test/|package-lock" /tmp/pack.txt; then
+            echo "::error::the tarball carries a file the package does not publish"
+            exit 1
+          fi
+          # AND NOT THE PARKING, because `criteria/_parked` and `criteria/_templates` are where a set goes when it is
+          # NOT one of the sets a consumer may ask for. Publishing them would put a parked set in the tarball of a
+          # package whose whole claim is that it ships exactly the criteria it means to ship.
+          if grep -qE "_parked|_templates" /tmp/pack.txt; then
+            echo "::error::the tarball carries a parked or templated criterion"
+            exit 1
+          fi
+          echo "the tarball carries exactly the package and its fixture"
+
+      - name: Every path the exports map names must be IN the tarball
+        run: |
+          # THE SAME RULE THE DOCS OBEY, APPLIED TO THE MANIFEST. `AGENTS.md` says a document may not name a file
+          # that is not here, and `test/doc-paths.test.js` says so about the prose. The `exports` map is the
+          # manifest's way of naming files, and a consumer that imports `system1-measure/rules` from a package
+          # whose tarball dropped `rules/` gets an ERR_MODULE_NOT_FOUND at install time -- in the consumer's code,
+          # about a file this repository shipped and never noticed.
+          #
+          # So the map is resolved against the tarball's OWN file list, not against the working tree: the working
+          # tree is what `files` is supposed to narrow, and the tarball is what a consumer receives.
+          npm pack --dry-run 2>&1 | grep "npm notice" | sed 's/^npm notice *//' | awk '{print $NF}' | sed 's|^|tarball:|' > /tmp/tarball-files.txt
+          node --input-type=module -e "
+            import { readFileSync } from 'node:fs'
+            const shipped = new Set(readFileSync('/tmp/tarball-files.txt', 'utf8').split('\n').filter(Boolean).map((l) => l.replace(/^tarball:/, '')))
+            const pkg = JSON.parse(readFileSync('./package.json', 'utf8'))
+            // THE MANIFEST SAYS \`./index.js\` AND THE TARBALL SAYS \`index.js\`, so both sides are normalised before
+            // they are compared. Without that, the check reports every export as missing and is a false alarm on a
+            // correct package -- which is worse than no check, because it teaches the reader to ignore it.
+            const norm = (p) => p.replace(/^\.\//, '')
+            let bad = 0
+            for (const [key, target] of Object.entries(pkg.exports ?? {})) {
+              if (target.includes('*')) {
+                const dir = norm(target.slice(0, target.indexOf('*')))
+                const n = [...shipped].filter((f) => f.startsWith(dir) && f.endsWith('.js')).length
+                if (n === 0) { console.error('::error::the exports map names ' + key + ' -> ' + dir + ' and the tarball carries no file under it'); bad++ }
+                else console.log('  ' + key + ' -> ' + dir + ': ' + n + ' file(s)')
+              } else if (!shipped.has(norm(target))) {
+                console.error('::error::the exports map names ' + key + ' -> ' + target + ' and the tarball does not carry it')
+                bad++
+              } else {
+                console.log('  ' + key + ' -> ' + target + ': present')
+              }
+            }
+            if (bad > 0) process.exit(1)
+          "
+
+      - name: The published manifest declares no dependency, because a clean room is the claim
+        run: |
+          # `AGENTS.md` says this package must never grow a runtime dependency, and says the tarball gate checks the
+          # PUBLISHED manifest rather than the working tree. The test in `test/instrument-boundary.test.js` asserts
+          # the working manifest; this asserts the one that leaves, because a publish is the moment the manifest
+          # becomes a promise.
+          node --input-type=module -e "
+            import { readFileSync } from 'node:fs'
+            const pkg = JSON.parse(readFileSync('./package.json', 'utf8'))
+            const deps = Object.keys(pkg.dependencies ?? {})
+            if (deps.length > 0) {
+              console.error('::error::the published manifest declares a runtime dependency: ' + deps.join(', '))
+              console.error('::error::a measurement that needs something installed cannot be run in a clean room')
+              process.exit(1)
+            }
+            console.log('the published manifest declares no dependency')
+          "
+
+      - name: Switch to a node that npm 12 supports
+        uses: actions/setup-node@v4
+        with:
+          # THE PUBLISH RUNS ON A DIFFERENT NODE FROM THE SUITE, and the reason is measured rather than chosen. npm
+          # 12.2.0 declares `engines.node: ^22.22.2 || ^24.15.0 || >=26.0.0` -- node 25 is NOT in that set, and
+          # node 25 is what this repository runs its suite on, because the coverage floor was measured there. So
+          # the two are separated rather than compromised: the suite runs where the floor was measured, and the
+          # publish runs where npm 12 can be installed at all.
+          node-version: '26'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+
+      - name: npm must be 12, because 11 cannot publish a package that does not exist yet
+        run: |
+          # MEASURED ON THE SISTER REPOSITORIES: with npm 11 the OIDC publish of a package that is not on the
+          # registry yet fails with
+          #   npm error code E404
+          #   npm error 404 Not Found - PUT https://registry.npmjs.org/<pkg> - Not found
+          # which is npm saying that there is no trusted publisher for a package it has never heard of -- the
+          # trusted-publisher configuration LIVES on the package's page, so a package that does not exist has no
+          # configuration to find. npm 12 is the release that added `npm stage`, which defers the 2FA
+          # proof-of-presence to a later step, and it is the release that can carry a FIRST publish. So the runner
+          # is put on npm 12 here rather than at the publish step, where the failure would be a 404 that reads like
+          # a permissions problem and is not one.
+          #
+          # AND MEASURED, AGAIN: npm 12 cannot be installed on node 25 at all --
+          #   npm error notsup Required: {"node":"^22.22.2 || ^24.15.0 || >=26.0.0"}
+          #   npm error notsup Actual:   {"node":"v25.9.0","npm":"11.12.1"}
+          # -- which is why the step above changes node rather than this step changing a version.
+          npm install -g npm@latest
+          ver=$(npm --version)
+          major=${ver%%.*}
+          if [ "$major" -lt 12 ]; then
+            echo "::error::npm $ver is too old to stage a first publish; needs >= 12"
+            exit 1
+          fi
+          echo "npm $ver can carry a first publish"
+
+      - name: Publish system1-measure
+        run: |
+          ver=$(node -p "require('./package.json').version")
+          if npm view "system1-measure@${ver}" version >/dev/null 2>&1; then
+            echo "::notice::system1-measure@${ver} already on npm, skipping"
+          else
+            if [[ "$ver" == *-* ]]; then tag=beta; else tag=latest; fi
+            echo "publishing ${ver} with dist-tag ${tag}"
+            # `npm publish` first. If npm STAGES it instead of publishing it -- which is what the 2FA flow does
+            # when the proof-of-presence has not happened yet -- the step still exits 0 and the installability check
+            # below is what notices. And if it FAILS, the fallback is `npm stage publish`, which is the same
+            # publish with the proof-of-presence deferred instead of demanded.
+            #
+            # AND THE STAGED FALLBACK TAKES **NO PACKAGE SPEC**, and that is not a style choice. MEASURED on the
+            # sister repository: npm 12.2.0 with a spec resolves the package FROM THE REGISTRY instead of packing
+            # the working directory, and a package that does not exist there is a 404 --
+            #   A: npm stage publish --dry-run            -> packs the CWD, proceeds
+            #   B: npm stage publish "pkg@0.2.0" --dry-run -> npm error code E404
+            #      404 Not Found - GET https://registry.npmjs.org/<pkg> - Not found
+            # -- and that 404 is the one the sister repository measured THREE TIMES and read as "npm cannot carry
+            # a first publish". It was the ARGUMENT. npm 12's own documentation says the spec-less form "packs the
+            # current working directory" and that "staged publishing will allow you to create a new package if it does
+            # not exist". So the fallback is the FIRST publish, not a last resort, and the spec is the bug.
+            if ! npm publish --provenance --access public --tag "$tag"; then
+              echo "::notice::npm publish failed; trying the staged path, which defers the 2FA proof-of-presence"
+              npm stage publish --tag "$tag" --provenance --access public
+            fi
+            echo "--- what npm holds for this version ---"
+            # AND WITHOUT A VERSION SPECIFIER, which is MEASURED: npm 12 answers
+            #   npm error code EUSAGE
+            #   npm error Version specifiers are not supported for listing staged packages
+            # for `npm stage list "<pkg>@<ver>"`. The list takes the package spec and not the version, so the
+            # filter on the version is done HERE, on the name AND the version.
+            stage_id=$(npm stage list --json 2>/dev/null | node -e "
+              let s = ''
+              process.stdin.on('data', (c) => { s += c })
+              process.stdin.on('end', () => {
+                let ids = []
+                try {
+                  const parsed = JSON.parse(s)
+                  const list = Array.isArray(parsed) ? parsed : (parsed && parsed.staged) ? parsed.staged : []
+                  for (const entry of list) {
+                    if (!entry || !entry.id) continue
+                    const p = entry.package || entry
+                    if (p.name === 'system1-measure' && p.version === process.argv[1]) ids.push(entry.id)
+                  }
+                } catch { /* not json: leave ids empty and let the fallback command name it */ }
+                process.stdout.write(ids[0] || '')
+              })
+            " "$ver")
+            # AND IF IT IS STAGED, APPROVE IT HERE. The proof-of-presence is the job's OIDC identity, so the job that
+            # staged the release is the job that can approve it -- but a staged release that nobody approves is not a
+            # release, and a GREEN job that only staged is evidence of staging. So the approval is attempted, and if
+            # npm wants a human, the step says so and says exactly which command settles it.
+            if [ -n "$stage_id" ]; then
+              echo "::notice::a staged release is waiting: ${stage_id}. Approving it."
+              if ! npm stage approve "$stage_id"; then
+                echo "::notice::npm would not approve it unattended; a human has to run: npx npm@latest stage approve ${stage_id}"
+              fi
+            fi
+          fi
+
+      - name: Every version published must be INSTALLABLE, because a staged publish is not a release
+        run: |
+          name=$(node -p "require('./package.json').name")
+          ver=$(node -p "require('./package.json').version")
+          # RETRY FOR MINUTES, NOT SECONDS: npm prints the SAME two lines whether it published a version that is
+          # still being processed or STAGED one awaiting approval -- only the registry, plus time, can tell them
+          # apart.
+          #
+          # AND THE WINDOW IS MEASURED, NOT ASSUMED. On 2026-10-20 the credential-free publish of
+          # `dsh-session-rows@0.2.1` said "Your package is being processed and may take a few minutes to become
+          # available", and the OLD 13-check window (195 seconds) closed BEFORE the version was installable -- the
+          # version was there by 250 seconds. So the run reported a FAILURE for a release that had actually
+          # succeeded, and the check that exists to catch a staged publish caught the timing instead. 20 checks over
+          # ~5 minutes covers what npm actually took, with room for a slower registry.
+          found=false
+          for attempt in $(seq 1 20); do
+            if npm view "${name}@${ver}" version >/dev/null 2>&1; then found=true; break; fi
+            sleep 15
+          done
+          if [ "$found" = true ]; then
+            echo "installable: ${name}@${ver}"
+            exit 0
+          fi
+          # MEASURED ON THE SISTER REPOSITORIES: npm's trusted-publishing flow can STAGE a release instead of
+          # publishing it -- the run signs a provenance statement, the publish step exits 0, and nothing is
+          # installable. A green job is then evidence of staging, not of publication.
+          echo "::error::${name}@${ver} is still not on the registry after ~5 minutes. npm accepted it and said it was 'being processed', so either the processing is unusually slow or it was STAGED; the two are indistinguishable from the CLI's output."
+          echo "::error::Approve the staged version (npm >= 12): npx npm@latest stage list && npx npm@latest stage approve <id>"
+          echo "::error::Or publish directly: npmjs.com -> the package -> Trusted Publishing -> allowed action 'npm publish', then re-run this workflow."
+          exit 1
+
+      - name: A prerelease must not be `latest` once a stable version exists
+        run: |
+          ver=$(node -p "require('./package.json').version")
+          pkg=$(node -p "require('./package.json').name")
+          latest=$(npm view "$pkg" dist-tags.latest 2>/dev/null || echo '')
+          if [ "$latest" != "$ver" ] || [[ "$ver" != *-* ]]; then
+            echo "tag check ok: latest=${latest:-<none>} (this release is $ver)"
+            exit 0
+          fi
+          # npm gives `latest` to the FIRST version of a package even when --tag beta is passed: MEASURED on this
+          # project's other packages, where all of them ended up with latest = 0.1.0-beta.1 while `beta` also
+          # pointed there. So while every published version is a prerelease this is npm's doing and not a misfiled
+          # publish -- a warning. Once a STABLE version exists, a prerelease on `latest` means `npm i $pkg` installs
+          # a beta, and that is an error.
+          stable=$(npm view "$pkg" versions --json 2>/dev/null | tr -d '[]" ' | tr ',' '\n' | grep -c -v -- '-' || true)
+          if [ "${stable:-0}" -gt 0 ]; then
+            echo "::error::$ver is a PRERELEASE on the \`latest\` tag while $stable stable version(s) exist, so \`npm i $pkg\` installs a beta. Move it: npm dist-tag add $pkg@<stable> latest"
+            exit 1
+          fi
+          echo "::warning::$ver is on \`latest\` because it is the only version published; npm does this for a first release. Publish a stable version to move it."
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
