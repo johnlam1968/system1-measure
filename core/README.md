@@ -15,6 +15,11 @@ Paths are relative to their own folder: a module in `core/` is named bare (`ques
 carries its `instrument/` prefix (`instrument/measure.js`), and the rules carry theirs (`rules/index.js`) -- which is
 the same name the code and the gates use.
 
+**AND THE SEAMS ARE THE USAGE.** Everything a host has to supply is a parameter, never an import, and there are
+seven of them: the two bindings of the input shape, the cut, the transport, the question sets, the producer, the
+tools and the portable package. **`docs/extending.md` is the list**, with the code and the contract each one obeys.
+This map says what each FILE is; that document says how to BIND them.
+
 **AND THE PACKAGE HAS NO HARNESS IN IT.** There is no `ctx` anywhere in this tree, no host event name, and no
 dependency of any kind: `package.json` declares none, and the boundary test says so from the tree rather than from
 this sentence. What binds a measurement to a harness lives in the harness's own repository, and it binds by PARAMETER
