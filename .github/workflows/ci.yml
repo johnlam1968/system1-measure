@@ -1,0 +1,87 @@
+# THE GATES, RUN ON EVERY PUSH AND EVERY PULL REQUEST.
+#
+# WHY THIS FILE EXISTS AT ALL, and the reason is a measurement rather than a preference. This repository had NO CI:
+# the gates ran only on the machine that wrote them, and `npm run ci` was RED -- the contract-teeth gate reported
+# "0 of 15 mutations caught" and exited 1 -- for as long as it was red. Nothing saw it, because nothing ran it.
+#
+# And the reason it was red is the reason a CI file is worth having: the gate was red for the WRONG reason. It read
+# TAP's `not ok N - name` while node's default reporter prints the `spec` format, so it counted zero failures in
+# every mutation and reported that the CONTRACT was toothless -- when the contract had been biting the whole time.
+# The gate was doing its job (it exits non-zero) and pointing at the wrong thing (the contract rather than the
+# parser). A gate that fails for the wrong reason sends the reader to fix the wrong thing, and a gate nobody runs
+# cannot fail at all.
+#
+# So: the gates run here, on every push, where a red is a red and the message can be read by somebody who is not
+# the person who wrote it.
+#
+# THE SAME NODE THE FLOOR WAS MEASURED ON. `npm run ci` includes the coverage floor (90/75/75), and that floor was
+# measured on node 25.x -- which is also what the publish workflow runs its suite on, so the two are not measuring
+# the same package on two different runtimes.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    name: The suite, the coverage floor and the contract teeth
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '25.x'
+          cache: npm
+
+      - name: Install from the lockfile
+        run: npm ci
+
+      - name: The suite and every gate
+        run: npm run ci
+
+      - name: The tarball is what a consumer receives, so it is checked here
+        run: |
+          # THE PACK GATE IS HERE AND NOT ONLY IN THE RELEASE, because a `files` mistake DROPS a file silently and
+          # the drop is invisible until a consumer imports something that is not there. The publish workflow checks the
+          # same list; this checks it on every push, where the cost of fixing it is a commit rather than a release.
+          npm pack --dry-run 2>&1 | tee /tmp/pack.txt
+          for want in index.js package.json README.md LICENSE rules/index.js contract/index.js bin/ask.mjs \
+                      rules/fixture/session.v4.jsonl rules/fixture/rows.jsonl contract/fixture/contract.mjs; do
+            if ! grep -q " $want$" /tmp/pack.txt; then
+              echo "::error::the tarball does not carry ${want}"
+              exit 1
+            fi
+          done
+          if grep -qE "test/|package-lock|_parked|_templates" /tmp/pack.txt; then
+            echo "::error::the tarball carries a file the package does not publish"
+            exit 1
+          fi
+          echo "the tarball carries exactly the package and its fixture"
+
+      - name: The published manifest declares no dependency, because a clean room is the claim
+        run: |
+          # `AGENTS.md` says this package must never grow a runtime dependency, and says the tarball gate checks the
+          # PUBLISHED manifest rather than the working tree. The test in `test/instrument-boundary.test.js` asserts
+          # the working manifest; this asserts the one that leaves, because a publish is the moment the manifest
+          # becomes a promise.
+          node --input-type=module -e "
+            import { readFileSync } from 'node:fs'
+            const pkg = JSON.parse(readFileSync('./package.json', 'utf8'))
+            const deps = Object.keys(pkg.dependencies ?? {})
+            if (deps.length > 0) {
+              console.error('::error::the published manifest declares a runtime dependency: ' + deps.join(', '))
+              console.error('::error::a measurement that needs something installed cannot be run in a clean room')
+              process.exit(1)
+            }
+            console.log('the published manifest declares no dependency')
+          "
