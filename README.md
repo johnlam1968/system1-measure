@@ -12,15 +12,18 @@ parameter, so the same measurement runs under any harness, or under none. MIT li
 ## Install
 
 ```bash
-npm install system1-measure
+npm install https://github.com/johnlam1968/system1-measure/releases/download/v0.1.0/system1-measure-0.1.0.tgz
 ```
 
 That is the whole installation. The package declares **no runtime dependency at all**, and runs on Node 22.19 or newer.
 
+**Why a URL and not a name.** The package is not on npm yet — a first publish needs a one-time code npm issues by
+hand — so the line above is the release tarball: npm fetches it over HTTPS, with no account, no key and no SSH, and it
+is the same tarball the four repositories that use this package install.
+
 ## The first minute
 
-A session is a file of rows — a receipt, then messages, tool calls and facts — one JSON object per line. Here is a
-complete one:
+A session is a file of rows — a receipt, then messages, tool calls and facts — one JSON object per line:
 
 ```bash
 cat > /tmp/demo-session.jsonl <<'EOF'
@@ -40,8 +43,7 @@ demo session s1  sha256 ab8b1f2c3d4e
 ```
 
 No model, no key, no network: that describes a session and prints what is in it. `npx system1-ask --list` prints the
-**16 question sets** that ship with the package, and `--set news-claim-check@2 --lint` checks a set without asking
-anything.
+**16 question sets** that ship with it, and `--set news-claim-check@2 --lint` checks a set without asking anything.
 
 ## Asking it questions
 

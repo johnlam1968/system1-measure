@@ -86,6 +86,22 @@ test('the short description is one line, and it is the package description', () 
     assert.equal(text, manifest.description, 'the README short description and the package description are one string')
 })
 
+test('the install line names the release asset of THIS version, because a name that is not on npm is a 404', () => {
+    // THE INSTALL LINE IS THE MOST LOAD-BEARING LINE ON THE PAGE, and it is the easiest to write for a package that
+    // does not exist yet: `npm install system1-measure` is what a reader types, and it is a 404 until the first publish
+    // gets the one-time code npm issues by hand. So the line is the release tarball -- fetched over HTTPS, with no
+    // account, no key and no SSH -- and the gate says so, because the failure it prevents is invisible until a
+    // stranger tries it.
+    //
+    // AND THE VERSION IS IN THE LINE, so a release that bumps the version without updating the page is caught here
+    // rather than by a reader. **WHEN THE PACKAGE REACHES NPM, THIS GATE CHANGES IN THAT COMMIT**: the line becomes
+    // `npm install system1-measure`, and the assertion becomes that the page names the package.
+    const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
+    const version = manifest.version
+    const asset = `https://github.com/johnlam1968/system1-measure/releases/download/v${version}/system1-measure-${version}.tgz`
+    assert.ok(readme.includes(asset), 'the README must install the release asset of version ' + version + ': ' + asset)
+})
+
 test('the front page does not carry the project\'s internal vocabulary', () => {
     // THE MEASURED LESSON, and the one that is easiest to repeat: the first landing page's cautions were written in the
     // PROJECT's own words -- "seams", "the probe", "a question set" -- and the judge read internal plumbing at 0.75 for
