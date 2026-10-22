@@ -6,6 +6,12 @@ out to have a checkable answer, and the answer changes what the core should spea
 Everything below was read rather than assumed. Two claims are **measured on this machine**, two are **read from
 sources**, and each says which.
 
+**AND THE FILE NAMES IN IT BELONG TO OTHER REPOSITORIES.** This survey was written in the observer's context, and it
+names the files it measured -- which are the observer's, the store's, or this package's. A name that is NOT in this
+package carries its repository in front of it (`dsh-system1-observer:dsh/host-events.js`,
+`dsh-session-index:lib/store.js`), so a reader can go and look at the right one. A gate checks that: **a path named
+in any document of this package must exist here, or say which repository it lives in** (`test/doc-paths.test.js`).
+
 ## What is standard, and what is not
 
 | layer | standard? | evidence |
@@ -45,8 +51,8 @@ The conclusion is a **contract**, not a convenience:
 | keep the losses deliberate | `THINK` is stored as a `reasoning` block and the text reader ignores it **by design** (`F79`); an attachment whose bytes are absent becomes an **empty** message rather than a fabricated block; and provider citations, which are **not** session events, are **not** turned into `tool/call`/`tool/result` — that would fabricate tool history a measurement would then read as real. They go to a sidecar (`IMPORT-MAP.json`) |
 | point a persistence backend at the imported root, or copy the sessions in | nothing sees them: the global session index correctly returns zero for a root no deployment is mounted on, which looks like missing data and is not |
 
-**The converter this repository ships** is `scripts/import-deepseek-web.mjs`, with the parsing and event mapping in
-`dsh/deepseek-web-export.js` (both tested, `test/deepseek-web-export.test.js`), for the `chat.deepseek.com` archive.
+**The converter this repository ships** is `dsh-system1-observer:scripts/import-deepseek-web.mjs`, with the parsing and event mapping in
+`dsh-system1-observer:dsh/deepseek-web-export.js` (both tested, `dsh-system1-observer:test/deepseek-web-export.test.js`), for the `chat.deepseek.com` archive.
 `--compression` must match the deployment that will read the root, or the root is refused wholesale (`F147`).
 
 **Two paths, and this repository built one and adopted nothing for the other.** To *continue chatting*, `dsh-chat-import` (audited, L5 run-tested, MIT,
@@ -54,7 +60,7 @@ The conclusion is a **contract**, not a convenience:
 this plugin*, convert to DSH sessions as above: the observer reads through `sessionQuery` + this adapter, which is what
 the verification demonstrates.
 
-**Attribution.** The importer (`tools/extract-web-export.mjs`, `import-web-export.mjs`, `verify-import.mjs`,
+**Attribution.** The importer (`dsh-system1-observer:tools/extract-web-export.mjs`, `import-web-export.mjs`, `verify-import.mjs`,
 `export-interchange.mjs`, `search-import.mjs`, `decode-session.mjs`), its outputs and its reasoning are the *Paper
 screening* session's work, in the operator's `test-system1-observer` workspace (`FINDINGS.md`,
 `deepseek_data-2026-10-07/`, 2026-10-06). That workspace is now a **local-only git repository** — 36 files, committed
@@ -126,7 +132,7 @@ Not "our own subject model" as previously recommended, and not "ATIF everywhere"
 
 ## Two disciplines worth stealing outright
 
-From `agent-eval`, both of which are already rules in `docs/findings.md` and are now known to be industry practice:
+From `agent-eval`, both of which are already rules in `dsh-system1-observer:docs/findings.md` and are now known to be industry practice:
 
 * a malformed line is **counted, never dropped silently** — *"a line that is not JSON is counted"*;
 * **absence is not zero** — *"A run whose diagnostic says `hasCost: false` has no cost, not a cost of zero — check the
@@ -177,7 +183,7 @@ The sixth harness, and the most instructive, because it solves the same problems
 
 | mcode file | what it is | our equivalent |
 |---|---|---|
-| `manifest.json` | `schemaVersion`, `sessionId`, timestamps, `source`, **`layout: "v2-final-dated-session"`**, and a `paths` map naming every other file | the package manifest + `dsh/session-adapter/lib/session-format.js`'s stated layout |
+| `manifest.json` | `schemaVersion`, `sessionId`, timestamps, `source`, **`layout: "v2-final-dated-session"`**, and a `paths` map naming every other file | the package manifest + `dsh-system1-observer:dsh/session-adapter/lib/session-format.js`'s stated layout |
 | `messages.jsonl` | `{ message_id, turn_id, message: { role, content: [{ type: 'text', text }] } }` | the event log, minus the control plane |
 | **`user-message-locators.jsonl`** | **an ask index by BYTE OFFSET and LINE NUMBER**, each entry carrying `generation` and **`artifactRevision: "sha256:…"`** | the ask index we derived by hand two turns ago — mcode ships it, and pins the revision it was built against |
 | `ledger.jsonl`, `display.jsonl`, `snapshot` | separate projections of one session | our G0/G1/G2 selections, and the Composer |
@@ -252,10 +258,10 @@ reason is the import audit that answered the operator's question: the store, its
 dsh code at all** — only `node:sqlite`, `node:child_process`, `node:fs`, `node:os`, `node:path`, `node:url` — while the
 plugin that measures sessions has no business owning a database.
 
-There: `lib/store.js` (the read side), `lib/build.js` (the builder), `lib/refresh.js` (the child-process rebuild),
-`lib/read.js` (reading a session's conversation), `lib/tools.js` (four agent-facing tools: `session_index_list`,
-`session_index_read`, `session_index_search`, `session_index_refresh`), `bin/session-index.mjs` (the CLI), and
-`index.js` (the row: `Config` and the service). In THIS repository, `scripts/session-index.mjs` remains as a **shim**
+There: `dsh-session-index:lib/store.js` (the read side), `dsh-session-index:lib/build.js` (the builder), `dsh-session-index:lib/refresh.js` (the child-process rebuild),
+`dsh-session-index:lib/read.js` (reading a session's conversation), `dsh-session-index:lib/tools.js` (four agent-facing tools: `session_index_list`,
+`session_index_read`, `session_index_search`, `session_index_refresh`), `dsh-session-index:bin/session-index.mjs` (the CLI), and
+`index.js` (the row: `Config` and the service). In THIS repository, `dsh-system1-observer:scripts/session-index.mjs` remains as a **shim**
 because the docs, the tool's own render text and several habits point at that path.
 
 The plugin consumes it **by package import** (`dsh-session-index/store`, `.../refresh`) rather than by injection,
@@ -600,7 +606,7 @@ observe        observeSession(id, options)
 ```
 
 **This plugin calls two of them: `listSessions()` and `readSession(id)`.** `readSurface` is additionally used as the
-ORACLE that `dsh/session-adapter/lib/surface.js` is checked against (`test/surface-compare.test.js`), while the live path takes the
+ORACLE that `dsh-system1-observer:dsh/session-adapter/lib/surface.js` is checked against (`dsh-system1-observer:test/surface-compare.test.js`), while the live path takes the
 surface from the session object instead.
 
 ### The harness's own search index exists, and this profile turns it OFF
@@ -611,7 +617,7 @@ Confirmed live after a restart: `system1_sessions { action: 'search' }` refuses 
 
 `@deepseek-ai/dsh-session-query-sqlite` is *"ranked SQLite FTS5 search across session history, either across sessions or
 within one session, with cursor pagination … a separate derived database, so searches reflect current state"* —
-**the same design as `scripts/session-index.mjs`**, shipped by the harness. Its `openAt` is
+**the same design as `dsh-system1-observer:scripts/session-index.mjs`**, shipped by the harness. Its `openAt` is
 `'startup' | 'first-search' | 'never'` and **defaults to `startup`**; the refusal is a base-bundle default, not a
 choice made in this profile:
 
@@ -738,7 +744,7 @@ with `{kind: 'surface', values: ['current']}` is the authoritative form of the f
 | the service has | what this plugin does instead | verdict |
 |---|---|---|
 | `searchSessions`, `searchEvents` | was: nothing — `system1_sessions`'s `search` compares a **title or id** | **FIXED**: `system1_sessions` now has `action: 'search'`, which calls `searchSessions` and hands the query over as data. The substring remains for `list` only, and where the index is absent the tool **refuses by name** instead of silently scanning titles |
-| `filterEvents(id, filters)`, `listEvents(id)` | `dsh/session-adapter/lib/reader.js` slices raw events by kind by hand | the filter vocabulary is `{seq \| time \| **type** \| **surface** \| text}`, so `{kind:'type'}` IS our kind slice and `{kind:'surface', values:['current']}` is the surface fold done AUTHORITATIVELY. Still hand-rolled, and the next thing to replace |
+| `filterEvents(id, filters)`, `listEvents(id)` | `dsh-system1-observer:dsh/session-adapter/lib/reader.js` slices raw events by kind by hand | the filter vocabulary is `{seq \| time \| **type** \| **surface** \| text}`, so `{kind:'type'}` IS our kind slice and `{kind:'surface', values:['current']}` is the surface fold done AUTHORITATIVELY. Still hand-rolled, and the next thing to replace |
 | `readTitle`/`readTitleSnapshots` | **WRONG — corrected**: the tool DOES call `readTitleSnapshots` (`lib/sessions-tool.js:108`) | this row was my error, not a gap |
 | `traceEvent`, `traceSession` | unused, though attribution was recorded as a missing capability | available and unclaimed |
 
@@ -751,7 +757,7 @@ with `{kind: 'surface', values: ['current']}` is the authoritative form of the f
    derived. The service offers the harness's own boundaries only.
 3. **Composition for a judge**: the labelled sections, the head/tail cut, and the surface-aware refusal (`a turn whose
    response was shadowed has NO response` — refused, not re-read from the log).
-4. **Sizing**: `coverageOf` and `dsh/segment.js`, which fit a subject to the decision model's character budget.
+4. **Sizing**: `coverageOf` and `dsh-system1-observer:dsh/segment.js`, which fit a subject to the decision model's character budget.
 5. **The register**: the trace, the readings, the packages, reproducibility. `sessionQuery` has no concept of a
    measurement, a question, or a reading.
 6. **Cross-harness**: the service is dsh-only. pi, mcode and Hermes need their own readers.
@@ -811,10 +817,10 @@ about 114 lines of paging arithmetic and then CONSUMES the rest as its ingester.
 | `sessions-tool.js` `rowsOf` (cwd/availability/title filtering) | 23 | **replace with a predicate** |
 | `session-subject.js` `readStoredSubject` | 36 | **become the INGESTER** — the same `readSession` call, once per session rather than once per question |
 | `session-subject.js` `eventTypesOf`, `subjectSettings` | 51 | **stay** — the kind→event-type mapping IS the format knowledge |
-| `dsh/session-adapter/lib/session-format.js` | 138 | **stay** — the vocabulary the ingester reads through |
+| `dsh-system1-observer:dsh/session-adapter/lib/session-format.js` | 138 | **stay** — the vocabulary the ingester reads through |
 | `sessions-tool.js` `createSessionsTool` (contract, render, refusals) | 309 | **stay** — a tool must exist whatever answers it |
-| `dsh/exchange.js` (G0/G1), `turn-state.js`, `segment.js`, `tool-blocks.js` | ~860 | **stay** — this is the business logic, and no schema holds a judgement |
-| `dsh/session-adapter/lib/surface.js` (the fold) | 20 | **replace with a SERVICE CALL**, not a database: `filterEvents(id, [{kind:'surface', values:['current']}])` |
+| `dsh-system1-observer:dsh/exchange.js` (G0/G1), `turn-state.js`, `segment.js`, `tool-blocks.js` | ~860 | **stay** — this is the business logic, and no schema holds a judgement |
+| `dsh-system1-observer:dsh/session-adapter/lib/surface.js` (the fold) | 20 | **replace with a SERVICE CALL**, not a database: `filterEvents(id, [{kind:'surface', values:['current']}])` |
 
 So the deletion is about **114 of ~11,100 lines — roughly 1%** — and the schema would need `eventTypesOf`,
 `readStoredSubject`, `session-format.js` and every semantic module anyway. **"Go straight to the database" is a
@@ -825,7 +831,7 @@ with the paging.
 
 ### Three things a database cannot cover at all
 
-1. **The live path.** `host/feed.js`, the turn observer, the seams, `readSurfaceSeqs` from the session object — these
+1. **The live path.** `dsh-system1-observer:host/feed.js`, the turn observer, the seams, `readSurfaceSeqs` from the session object — these
    are event *subscriptions*, not queries. A store has nothing to say about a turn that is happening now.
 2. **The semantics.** `exchange.js`, `turn-state.js`, `segment.js`, `tool-blocks.js`: what an ask is, what the judge is
    shown, how the subject is sized, and the refusal when a group cannot be composed.
@@ -882,10 +888,10 @@ do:
 | what answers | the live session object: the surface seqs, the claimed inbox message, the mounted services | the durable log, projected into rows |
 | may it change a turn? | **yes** — a judgement here can refuse, or return an intent that owns a decision | **no** — a reading cannot change anything that already happened |
 | latency | constrained by the harness's own event modes | irrelevant |
-| code | `host/feed.js`, `host/fs-journal.js`, `host/surface.js`, `register.js`, `seams.js`, `observe.js`, `stream.js`, the `turn-*` path | the ingester, the schema, the queries, the per-harness readers |
+| code | `dsh-system1-observer:host/feed.js`, `dsh-system1-observer:host/fs-journal.js`, `dsh-system1-observer:host/surface.js`, `register.js`, `seams.js`, `observe.js`, `stream.js`, the `turn-*` path | the ingester, the schema, the queries, the per-harness readers |
 | covers other harnesses | **no, by construction** | **yes** — pi, mcode, Hermes |
 
-The constraints in `dsh/host/index.js` are why channel 1 is a different engineering problem rather than a different
+The constraints in `dsh-system1-observer:dsh/host/index.js` are why channel 1 is a different engineering problem rather than a different
 data source: `agent/turn-stopping` is **serial**, so no O(surface) work may run inside it; `fs/write-intent` is
 **waterfall, single slot**, so the first returned intent owns a decision; `fs/observed` is `emit` but *a throw fails the
 tool call*. A store cannot be consulted inside those — which is why the two channels are not one channel with a cache.
@@ -904,7 +910,7 @@ They must share **the selection semantics and the vocabulary**, or the same ques
 ```
 
 The normalized shape is the five concepts already derived — **an ask, an answer, the reasoning, tool traffic, a
-boundary** — plus the per-harness facts (`shadowed`, `interrupted`, `attempts`, the boundary label). `dsh/session-adapter/lib/session-format.js`
+boundary** — plus the per-harness facts (`shadowed`, `interrupted`, `attempts`, the boundary label). `dsh-system1-observer:dsh/session-adapter/lib/session-format.js`
 is channel 1's reader of dsh's log; an ingester is channel 2's. **When both produce that shape, the same question set
 can be asked of a live seam judgement and of a corpus reading — and of pi's sessions through its own reader.** That,
 not the database, is what makes measuring another harness reachable.
@@ -919,7 +925,7 @@ not the database, is what makes measuring another harness reachable.
    read, so a reading without its receipt is a reading of an arbitrary past prefix — and this session has been measured
    while running more than once.
 4. **The service stays the fallback and the oracle.** Where the index is absent the service answers; where the two
-   disagree, **the log wins** — the pattern already in `test/surface-compare.test.js`, which compares this plugin's fold
+   disagree, **the log wins** — the pattern already in `dsh-system1-observer:test/surface-compare.test.js`, which compares this plugin's fold
    against `sessionQuery.readSurface` rather than trusting either alone.
 5. **The index is droppable.** Derived, rebuildable (4.1 s over 185 sessions), receipted, and never the source of truth
    for a forensic question.

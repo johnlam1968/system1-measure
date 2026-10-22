@@ -202,7 +202,7 @@ fixture that changes in one place cannot be quietly different in another.
 | the surface, and what it withdrew | `dsh-session-rows` — `surfaceEvents` |
 | a producer that restates the rules | the fixture: `test/rows-conformance.test.js` in each repository, against the pinned digest `27bb1c0c893adb4f6b52648fdff32cb17b39022f8dbea53451ac5f84058cdb66` |
 | the two channels agree | `scripts/check-channel-agreement.mjs`, over the whole corpus — **946 of 946 sessions agree on every field today** |
-| **two implementations of the FORMAT agree** | `scripts/check-pi-channels.mjs`, over the whole pi corpus — see §9 |
+| **two implementations of the FORMAT agree** | `dsh-system1-observer:scripts/check-pi-channels.mjs`, over the whole pi corpus — see §9 |
 
 **THE FIXTURE IS NOT DECORATION, AND IT WAS NOT, AT FIRST.** An independent review measured **eleven producer
 mutations that left the whole suite green** — among them the *reasoning join*, the very defect class this design
@@ -243,5 +243,5 @@ node scripts/check-pi-channels.mjs --pi-repo ../pi-session-log
 
 **AND THE SECOND IMPLEMENTATION IS CHECKED AGAINST THE FIXTURE, WHICH IS THE CLAIM THE FORMAT MAKES:** a producer
 that knows nothing about dsh makes the dsh channel's rows from a dsh log, byte for byte. That is
-`pi-session-log`'s `test/conformance.test.js`, and it would fail if the pi implementation carried a dsh-shaped rule.
+`pi-session-log`'s `dsh-system1-observer:test/conformance.test.js`, and it would fail if the pi implementation carried a dsh-shaped rule.
 

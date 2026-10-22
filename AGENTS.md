@@ -49,6 +49,14 @@ passes it in, nothing in this package reaches for a host. The three properties a
   and it is tested: `test/instrument-boundary.test.js` walks the tree, and `scripts/check-contract-teeth.mjs` mutates
   the shape and fails if the contract stays green.
 
+**AND A DOCUMENT MAY NOT NAME A FILE THAT IS NOT HERE.** A path in any page of this package must resolve to a file
+in this package, or carry the name of the repository it lives in (`dsh-system1-observer:dsh/host-events.js`).
+`test/doc-paths.test.js` says so, and it says so because the map's own gate did not: the gate checked the ENTRIES
+both ways -- a file cannot be undeclared, a name cannot be a phantom -- and **the prose was never checked**, which is
+where a stale path survives longest. The map was rewritten for this package and still named the observer's `lib/`, the
+old `dsh/session-adapter/`, and a `test/fixtures/` contract that had moved to `contract/fixture/`. Every one of those
+was a reader being sent to a file that is not here.
+
 **AND THE CONTRACT TRAVELS.** `system1-measure/contract` publishes the input shape's fixture and its digest, because
 a contract a second host cannot read pins nothing outside the repository that wrote it. A fixture that travels
 without its digest protects nothing: a renamed fixture is a different contract.

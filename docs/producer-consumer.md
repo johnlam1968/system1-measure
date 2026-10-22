@@ -2,7 +2,7 @@
 
 **Status:** design proposal, not yet built. **Part of it is already wired** — the seam calls land in the JSONL
 trace, the `system1Observer` service exposes seven read-only methods to other plugins
-(`core/service.js`), and the seam listeners themselves are subscribed via `ctx.on(event, …)`. What is missing
+(`dsh-system1-observer:core/service.js`), and the seam listeners themselves are subscribed via `ctx.on(event, …)`. What is missing
 is the **in-process distribution channel** that lets a Cordis row (today's act row of ROADMAP §9, tomorrow's
 third-party plugin) react to a judgement without having to poll the trace or re-implement the seam listener.
 
@@ -15,16 +15,16 @@ JSONL trace as the durable fallback and the audit boundary.
 
 The repository today does the **producer** half mechanically:
 
-- `core/observe.js` and `core/turn-observer.js` build a `call` line at every seam and every turn boundary,
+- `core/observe.js` and `dsh-system1-observer:core/turn-observer.js` build a `call` line at every seam and every turn boundary,
   with `{ hook, agentId, turn, subject, questions, answer, executed, usage, durationMs, worstCase, … }`
   on the line. (`index.js:1219-1349` is the live example: nine seams, one scheduled `turn` measurement.)
-- `core/service.js` builds `system1Observer`, a frozen, read-only service other rows already inject. It
+- `dsh-system1-observer:core/service.js` builds `system1Observer`, a frozen, read-only service other rows already inject. It
   exposes the trace as a window (`read`), the live runs (`runs`), the sessions (`sessions`), the
   configurable knobs (`config`), the question sets (`questionSets`), the stored sessions
   (`storedSessions`), the subject settings (`subject`), the nudge label (`label`) and the configuration
   fold (`replay`). The whole object is frozen and a full sweep leaves the trace's bytes identical
   (`test/service.test.js:77`).
-- The seam listeners themselves are subscribed through `core/register.js`, which holds the
+- The seam listeners themselves are subscribed through `dsh-system1-observer:core/register.js`, which holds the
   point-to-event map and runs the gate logic before calling `observer.observe(hook, text, meta)`.
 
 The **consumer** half is the gap. Today a row that wants to react to a judgement has two routes, and
@@ -94,8 +94,8 @@ The design has to fit three constraints:
 | constraint | where it comes from |
 |---|---|
 | subscribers must be torn down with the row that registered them | a fiber that disposes leaves no live listeners |
-| subscribers must NOT need to know the host's event names | the host's events are dsh's and change with dsh (this is the rationale behind `dsh/host-events.js`'s separation of point ids from event names) |
-| the durable record must remain the source of truth | every finding in `docs/findings.md` that touches "what was actually measured" is "the durable record said so, and the in-memory copy disagreed" |
+| subscribers must NOT need to know the host's event names | the host's events are dsh's and change with dsh (this is the rationale behind `dsh-system1-observer:dsh/host-events.js`'s separation of point ids from event names) |
+| the durable record must remain the source of truth | every finding in `dsh-system1-observer:docs/findings.md` that touches "what was actually measured" is "the durable record said so, and the in-memory copy disagreed" |
 
 **`EventEmitter`-on-`ctx`** would lose on #1 (the `EventEmitter` survives the disposing fiber) and on #3
 (no audit trail of who subscribed to what).
@@ -123,7 +123,7 @@ the consumer of an in-loop judgement cannot wait for a fsync.
 
 ## 3. The producer: what already exists, and what it must add
 
-### 3.1 Today: `core/service.js`
+### 3.1 Today: `dsh-system1-observer:core/service.js`
 
 The service is **read-only and frozen** today, and that contract stays. Every method closes over a
 reader and returns its result; nothing in the service writes or subscribes. (`test/service.test.js:48`
@@ -134,7 +134,7 @@ without polling `service.read()`. The next version of this service gains one new
 — that returns a disposer, and the trace writer gains one new line — a `pubsub.emit(result)` call —
 between the existing `trace('call', …)` line and the end of `observe()`.
 
-### 3.2 Tomorrow: `lib/results.js`
+### 3.2 Tomorrow: `dsh-system1-observer:lib/results.js`
 
 ```
 // THE SHAPE, NOT THE IMPLEMENTATION. The detail in §4-§6.
@@ -228,8 +228,8 @@ internal hook name, with no new vocabulary.
 
 | event | when | the existing hook name |
 |---|---|---|
-| `system1/result` (default) | every seam judgement and every turn boundary | `core/observe.js` `observe()` / `core/turn-observer.js` `onAdmit()` |
-| `system1/seam/:id` | one specific seam fired (`:id` is one of the nine in `PROBE_SEAMS`) | the per-seam path through `core/register.js` |
+| `system1/result` (default) | every seam judgement and every turn boundary | `core/observe.js` `observe()` / `dsh-system1-observer:core/turn-observer.js` `onAdmit()` |
+| `system1/seam/:id` | one specific seam fired (`:id` is one of the nine in `PROBE_SEAMS`) | the per-seam path through `dsh-system1-observer:core/register.js` |
 | `system1/turn` | a turn-boundary measurement fired | `hook: 'turn'` |
 | `system1/review` | a whole-session judgement (`system1_evaluate_session`) fired | `hook: 'session-review'` |
 | `system1/battery` | a battery run finished (the betters-vs-differents gate) | `hook: 'experiment'` |
@@ -418,7 +418,7 @@ two are integration: they are the cost of having the shape at all.
 
 ## 11. The shape, summarised
 
-A **producer** (`lib/results.js`) sits beside `core/service.js` in this repository. It owns a
+A **producer** (`dsh-system1-observer:lib/results.js`) sits beside `dsh-system1-observer:core/service.js` in this repository. It owns a
 bounded ring buffer of recent results, an `emit` that publishes each result to subscribers and to
 the durable trace, and a `subscribe` that hands a Cordis disposer to a caller.
 

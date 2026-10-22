@@ -123,7 +123,7 @@ Two consequences to keep:
 
 * **A group's definition is its citation.** If the format version moves, the table is stale and the groups are
   undefined until it is re-checked. `SESSION_FORMAT_VERSION = 4` (`types.ts:89`) while the released format is 3
-  (`docs/session-format-status.md`) — so we are pinned to the checkout writer, and a version bump is a review trigger
+  (`dsh-system1-observer:docs/session-format-status.md`) — so we are pinned to the checkout writer, and a version bump is a review trigger
   in the same spirit as the compatibility gate.
 * **Where we have a vocabulary, ask whether the harness already has one.** `ask`, `turn`, `exchange` and `ask-group`
   above survive that test — `turn` and `step` are theirs, the other three are ours and are defined by the events they
@@ -257,7 +257,7 @@ characters — five times that session's visible text**, and unmistakably delibe
 Two consequences, and they point opposite ways:
 
 * **A reading of what the human READ must exclude reasoning**, or the operator is credited with the model's private
-  deliberation. That excludes it in one place (`dsh/session-adapter/lib/session-format.js`), which is why the reported "chars of
+  deliberation. That excludes it in one place (`dsh-system1-observer:dsh/session-adapter/lib/session-format.js`), which is why the reported "chars of
   conversation" for that session fell from 12,774,434 to 2,839,380.
 * **A question about the model's own deliberation is answerable**, from the reasoning blocks in G1, rather than
   impossible as this file previously implied.
