@@ -1,24 +1,26 @@
 # system1-measure
 
-**A measurement you can run by yourself.** Ask a model questions about a session, get back a reading you can keep,
-compare and share — with no harness, no plugin, no service, and **no dependency of any kind**.
+> Measure an agent session — the questions asked, the answers given, and the evidence behind them.
+
+**What it is.** A measurement you can run on an agent session, and keep. You hand it the session; it asks the
+questions you chose, writes down every answer beside the evidence it came from, and leaves you a portable record.
+
+**It has no harness in it, and no dependencies.** Nothing in the package reaches for a host, a model or a network
+service on its own. What a host supplies — where its sessions come from, how it reaches a model — is passed in as a
+parameter, so the same measurement runs under any harness, or under none. MIT licensed.
+
+## Install
 
 ```bash
 npm install system1-measure
-npx system1-ask --list
 ```
 
-That is the whole installation. There is nothing else to configure, nothing to mount, and no second package to find:
-`system1-measure` declares **no runtime dependencies at all**, and that is checked rather than claimed — the publish
-gate reads the *published* manifest, and `test/instrument-boundary.test.js` fails any module that imports anything
-but node builtins and itself.
-
----
+That is the whole installation. The package declares **no runtime dependency at all**, and runs on Node 22.19 or newer.
 
 ## The first minute
 
-The package ships **16 question sets** and a standalone that reads a session. This is the whole thing, offline, with
-no model key and no harness:
+A session is a file of rows — a receipt, then messages, tool calls and facts — one JSON object per line. Here is a
+complete one:
 
 ```bash
 cat > /tmp/demo-session.jsonl <<'EOF'
@@ -37,134 +39,56 @@ demo session s1  sha256 ab8b1f2c3d4e
   exchange 0: 1 ask(s), 1 answer(s), 0 shadowed
 ```
 
-A normalized session is **rows**: a receipt, then messages, tool calls and facts. One JSON object per line. The
-receipt comes first because a measurement that cannot name the bytes it read cannot be reproduced or argued with.
-The contract for those rows is [`system1-measure/rules`](#the-rules-and-the-one-path-to-them).
+No model, no key, no network: that describes a session and prints what is in it. `npx system1-ask --list` prints the
+**16 question sets** that ship with the package, and `--set news-claim-check@2 --lint` checks a set without asking
+anything.
 
-To actually **ask** something, the standalone needs a model, and it needs a key:
+## Asking it questions
 
-```bash
-export OPENROUTER_API_KEY=...          # read from the environment BY NAME, never as an argument
-npx system1-ask --set news-claim-check@2 --scope admit --state "the sky is blue because the ocean reflects it"
-```
-
-The key is read from the environment **by name** and never taken as an argument — a key on a command line is a key
-in the shell history, in the process table, and in every `ps` on the host. It is the only place a credential enters
-this package, which is what makes *"the measurement holds no secret"* checkable rather than aspirational.
-
-Two more routes spend nothing and need no key:
-
-```bash
-npx system1-ask --list                                  # the 16 sets this package ships, with their hashes
-npx system1-ask --set news-claim-check@2 --lint          # check a set against the authoring rules, ask nothing
-```
-
-## What it does
-
-The measurement asks a model **questions about a session** and records what it said. Three questions, one place:
-
-| operation | what it is |
-|---|---|
-| **compose** | build the questions, from DSL strings, inline JSON, or a stored set — and lint them |
-| **list** | what sets exist, in one shape every caller renders the same way |
-| **ask** | load a set (or an inline list) and call the model with it |
-
-Everything else is a difference of **subject** (a session, a seam's state, a pasted article), **transport** (a
-closure, or a URL and a key) and **trace** (some surfaces record, some do not). Those are the three legitimate
-differences between callers, and a caller wanting a fourth difference should add it in one place, not five.
-
-A measurement is **portable**: `npx system1-ask ... --package` writes a directory with a manifest, a report, the
-readings, the trace and a hash of the reproducible files — so two measurements can be compared, and one can be
-argued with.
-
-## It is built to be bound to
-
-This package holds **no harness** and knows what one is not. That is not a limitation — it is the design, and it is
-what makes it reusable. Everything a host has to supply is a **seam**, and every seam is a parameter, never an
-import.
-
-| seam | what a host supplies | where |
-|---|---|---|
-| **the two bindings** | `describePoint(seam, enabled) -> {id, hostEvent, enabled}` and `observed(config, agentId) -> boolean` | `instrumentShape()` |
-| **the cut** | how a subject is divided when it does not fit one request: `(events, messages, opts) -> parts[]` | `judgeSegments({ cut })` |
-| **the transport** | `{ decide(request) -> result }` — a closure, not a model | `askQuestions(input, transport)` |
-| **the question sets** | a directory of `.json` files, one per set, one scope per file | `criteria/` |
-| **the producer** | how *your* substrate's records become rows | `normalizeEvents()` is one such producer |
-| **the tools** | `system1_battery` and `system1_question_sets` — two agent-facing tools that measure the instrument itself | `core/*-tool.js` |
-
-**The two bindings are the whole of the harness-specific part.** A second host — a pi extension, an agent session
-runner, anything — builds the *same* input object and gets the *same* measurement:
+`askQuestions` takes the questions and a **transport** — a function you write that actually calls a model:
 
 ```js
-import { instrumentShape } from 'system1-measure'
+import { askQuestions, wireTransport } from 'system1-measure'
 
-const shape = instrumentShape(config, {
-    point: 'draft',
-    describePoint: (seam, enabled) => ({ id: seam, hostEvent: 'my_host/turn', enabled }),
-    observed: (config, agentId) => mySessions.has(agentId),
-})
+const transport = wireTransport({ baseUrl: 'https://openrouter.ai/api', model: 'jev-latest', keyEnv: 'OPENROUTER_API_KEY' })
+const answer = await askQuestions({ set: 'news-claim-check@2', scope: 'admit' }, transport)
 ```
 
-A missing binding is **refused by name, before anything is built** — a shape built against a default predicate would
-answer *"every session is in scope"* for a host that meant to scope it, and a measurement that observes a
-conversation nobody scoped is not a measurement anybody can trust.
+The key is read from the environment **by name**, never as an argument, so it never reaches a command line or a
+process list. If you would rather ask your own model, write your own transport: it is one function, `decide(request)`.
 
-And that is not a promise: the shape has a **contract fixture**, digest-pinned, and a script that mutates the shape
-in a copy of the tree and fails if any mutation leaves the contract green. **15 mutations, 15 caught.** A second host
-that builds the same shape can vendor the same fixture and prove it.
+## Putting it on your own agent session
 
-**→ [`docs/extending.md`](docs/extending.md) is the guide: every seam, with the code.**
+A host supplies **two functions**, and the rest is the package's:
 
-## The rules, and the one path to them
+* **`describePoint(point, enabled)`** — which of your events a measurement point attaches to, and whether that point is
+  switched on.
+* **`observed(config, agentId)`** — whether this session is in scope.
 
-`system1-measure/rules` is where the row contract lives — the row kinds, the roles, the message types, the NUL rule,
-the source rule, the exchange grouping, the surface fold, and the conformance fixture with its digest.
+Give it those and it builds what it needs; leave one out and it says which one, by name, before it does any work.
 
-The rules are not re-exported from the package's main entry, on purpose. **A rule stated in two places is a rule that
-will be changed in one of them**, and the other repository that depends on it will not be told. They were
-`dsh-session-rows`, published and digest-pinned, and they are absorbed here **verbatim** — the same bytes, the same
-fixture, the same digest `27bb1c0c893adb4f6b52648fdff32cb17b39022f8dbea53451ac5f84058cdb66`.
+## What you get
 
-```js
-import { withoutNuls, visibleText, isHumanMessage, fixtureDigest } from 'system1-measure/rules'
-```
+* **16 question sets** you can run, read, edit and lint. The questions are an artifact, not a constant.
+* **A portable measurement**: a directory with the report, the readings, the trace, and a hash of the reproducible files.
+* **A published contract** for the input, so a second host can prove it builds the same thing.
+* **Two tools for an agent** — one for the question sets, one for the labelled battery that tells a better question from
+  a different one.
 
-## The API
+## Before you trust a reading
 
-```js
-import {
-    // the three operations
-    composeQuestions, listQuestionSets, askQuestions, wireTransport,
-    // the input shape, and the two bindings
-    instrumentShape,
-    // the chain
-    judgeSegments, judgeOnce, measurementSummary, segmentBudgetFor,
-    // the producer, and the reader
-    normalizeEvents, readRowsJsonl, validateRows, rowsSummary, exchangesOfRows, segmentsOfRows,
-    // the portable measurement
-    buildPackage, buildSkeleton, writePackage, packageId,
-} from 'system1-measure'
-```
+* "I cannot tell" is an answer. A set that cannot express it will report a false certainty.
+* The text is what the model could see, not what the session wrote: a span withdrawn by compaction is marked as
+  withdrawn, and it stays in the count.
+* A measurement names the bytes it read. A reading you cannot point at is a reading you cannot argue with.
 
-The two halves are separable and both are public: `"./core/*"` and `"./instrument/*"` are open subpaths, so a
-consumer that needs only the format's vocabulary does not have to take the measurement with it.
+## Questions, and contributing
 
-## The map
-
-**[`core/README.md`](core/README.md)** is the map of this package — every file, what it is, and which folder it
-belongs to. It is enforced by a test: a file that is not named there fails, and a name that is not there fails.
-
-## The documents
-
-| document | what it is |
-|---|---|
-| [`docs/extending.md`](docs/extending.md) | **every seam, with the code** — how to bind this to your agent session or harness |
-| [`docs/session-log-format.md`](docs/session-log-format.md) | the format the rows and the vocabulary both speak |
-| [`docs/producer-consumer.md`](docs/producer-consumer.md) | the producer/consumer shape, and why the producer is a seam |
-| [`docs/measurement-depth.md`](docs/measurement-depth.md) | the evidence groups, and what G0–G4 mean |
-| [`docs/question-suitability.md`](docs/question-suitability.md) | which question may be asked of which evidence |
-| [`docs/state-suitability.md`](docs/state-suitability.md) | which state may be given to the judge, and how it must be written |
-| [`docs/adapters-and-standards.md`](docs/adapters-and-standards.md) | the session/database design, and what the rest of the industry actually stands |
+Ask in [GitHub issues](https://github.com/johnlam1968/system1-measure/issues); pull requests are welcome. The long
+documentation is off this page on purpose — start with
+[the guide to putting it on your own session](https://github.com/johnlam1968/system1-measure/blob/master/docs/extending.md),
+then [the map of every file](https://github.com/johnlam1968/system1-measure/blob/master/core/README.md), then
+[the format a session log has to speak](https://github.com/johnlam1968/system1-measure/blob/master/docs/session-log-format.md).
 
 ## Licence
 

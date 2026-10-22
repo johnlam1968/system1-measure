@@ -245,6 +245,9 @@ a shorter session that answers every question correctly and about the wrong conv
 import { withoutNuls, visibleText, isHumanMessage, fixtureDigest, digestOf } from 'system1-measure/rules'
 ```
 
+**The digest is `27bb1c0c893adb4f6b52648fdff32cb17b39022f8dbea53451ac5f84058cdb66`**, over the fixture's NAME as well as
+its bytes, and it is the one number the store, the pi extension and the observer all pin.
+
 `system1-measure/rules` is the contract every producer obeys, and it is **one file** — not re-exported from the main
 entry, on purpose. *A rule stated in two places is a rule that will be changed in one of them*, and the other
 repository that depends on it will not be told.
@@ -299,6 +302,10 @@ So the contract is a **published, digest-pinned fixture**:
 ```js
 import { cases, FIXTURE_DIGEST, digestOf } from 'system1-measure/contract'
 ```
+
+**The digest is `a1a45d16ca9f645677fd07315d3af95f9499c20b32c1d7b2765087225c30299a`**, and it did not move when the
+fixture moved: the logical name is `fixture/contract.mjs` relative to the contract's own directory, which is the same
+convention the rules' fixture uses.
 
 A second host that binds the two bindings can vendor the fixture and check its own builder against it — the same
 way, and with the same `deepStrictEqual`, because **the comparison is the only thing that tells ABSENT from
@@ -364,6 +371,22 @@ These are the rules the package holds itself to, and they are the rules a host b
   default predicate says *"everything is in scope"*.
 
 ---
+
+## The public API
+
+`system1-measure` exports **28 names**, and they are the whole of it — the map of every file is in
+`core/README.md`, and this is the map of every NAME.
+
+| group | names | what they are |
+|---|---|---|
+| **the questions** | `composeQuestions` · `askQuestions` · `wireTransport` · `listQuestionSets` · `writeQuestionSet` · `renderAnswerLines` · `WRITABLE_SCOPES` · `MACHINE_UNCOVERED` | compose a set, ask it, list the sets, write one, and the two constants that say what may be written |
+| **the input** | `instrumentShape` · `questionGroup` · `redactionGroup` · `declaredAxes` | the shape a host builds, and the three groups it is made of |
+| **the chain** | `judgeSegments` · `judgeOnce` · `measurementSummary` · `segmentBudgetFor` | judge a subject, judge it once, summarise it, and size the segments |
+| **the rows** | `normalizeEvents` · `readRowsJsonl` · `validateRows` · `rowsSummary` · `receiptOf` · `exchangesOfRows` · `segmentsOfRows` | turn a session log into rows, read them, check them, and cut them |
+| **the portable measurement** | `buildPackage` · `buildSkeleton` · `writePackage` · `packageId` · `defaultPackageDir` | build a measurement package, write it, and name it |
+
+**`index.js` is the only entry point**, and it re-exports the rules from their own path rather than from here — a rule
+stated in two places is a rule that will be changed in one of them.
 
 ## Read next
 

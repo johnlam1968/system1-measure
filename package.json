@@ -2,7 +2,7 @@
   "name": "system1-measure",
   "version": "0.1.0",
   "type": "module",
-  "description": "The measurement: the question sets, the composition, the chain, the session-log format, the normalized rows and the rules they obey. No harness, no dependencies.",
+  "description": "Measure an agent session \u2014 the questions asked, the answers given, and the evidence behind them.",
   "main": "index.js",
   "exports": {
     ".": "./index.js",
